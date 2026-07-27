@@ -1,23 +1,14 @@
-# Silvana Career Agent
+# Silvana Career Agent v0.2
 
-Персональная система поиска вакансий, оценки совпадения, адаптации резюме и подготовки откликов.
+Русскоязычная панель поиска вакансий, скоринга и статусов.
 
-Первая версия:
-- поиск вакансий через публичный API HeadHunter;
-- сохранение вакансий в SQLite;
-- базовый скоринг;
-- REST API;
-- подготовка к OAuth HeadHunter;
-- запуск на VPS через systemd.
+## Возможности
+- публичный поиск вакансий HH;
+- SQLite и дедупликация;
+- Match Score, причины совпадения, красные флаги;
+- рекомендуемые проекты;
+- статусы вакансий;
+- веб-панель и API.
 
-Запуск:
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-python -m app.main
-
-Проверка:
-curl http://127.0.0.1:8010/health
-
-Секреты и .env нельзя коммитить.
+## Проверка
+`curl http://127.0.0.1:8010/health`
