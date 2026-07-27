@@ -1,0 +1,16 @@
+[Unit]
+Description=Silvana Career Agent
+After=network.target
+
+[Service]
+Type=simple
+User=career-agent
+Group=career-agent
+WorkingDirectory=/opt/career-agent
+EnvironmentFile=/opt/career-agent/.env
+ExecStart=/opt/career-agent/.venv/bin/python -m app.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
