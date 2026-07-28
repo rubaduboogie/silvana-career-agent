@@ -10,7 +10,6 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.database import VALID_STATUSES, connect, init_db
-from app.hh_client import HHClient
 from app.scoring import load_profile, score_vacancy
 from app.settings import get_settings
 
@@ -21,7 +20,7 @@ DEFAULT_QUERIES = [
     'Creative Producer', 'Content Designer', 'Digital Designer'
 ]
 
-app = FastAPI(title='Silvana Career Agent', version='0.3.0')
+app = FastAPI(title='Silvana Career Agent', version='0.4.0')
 app.mount('/static', StaticFiles(directory='app/static'), name='static')
 templates = Jinja2Templates(directory='app/templates')
 
@@ -47,7 +46,7 @@ def home(request: Request):
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'version': '0.3.0'}
+    return {'status': 'ok', 'version': '0.4.0'}
 
 def ser(row):
     data = dict(row)
@@ -121,9 +120,13 @@ async def search(payload: SearchPayload):
     profile = load_profile()
     queries = [payload.query] if payload.query else DEFAULT_QUERIES
     processed = saved = 0
-    with connect() as c:
+    with connect() as conn:
         for query in queries:
-            result = await HHClient().search_vacancies(query, area=payload.area, per_page=payload.per_page)
+            result = await run_browser('search', {
+                'query': query,
+                'area': payload.area,
+                'per_page': payload.per_page,
+            })
             for item in result.get('items', []):
                 processed += 1
                 sc = score_vacancy(item, profile)
@@ -132,15 +135,24 @@ async def search(payload: SearchPayload):
                 area = (item.get('area') or {}).get('name')
                 schedule = (item.get('schedule') or {}).get('name')
                 employment = (item.get('employment') or {}).get('name')
-                old = c.execute('SELECT status FROM vacancies WHERE id=?', (item['id'],)).fetchone()
+                old = conn.execute('SELECT status FROM vacancies WHERE id=?',(item['id'],)).fetchone()
                 status = old['status'] if old else 'new'
-                c.execute(
-                    '''INSERT OR REPLACE INTO vacancies(id,name,employer,salary_from,salary_to,currency,area,schedule,employment,url,published_at,match_score,match_reasons,red_flags,recommended_projects,status,raw_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)''',
-                    (item['id'], item.get('name'), emp, sal.get('from'), sal.get('to'), sal.get('currency'), area, schedule, employment, item.get('alternate_url'), item.get('published_at'), sc['score'], json.dumps(sc['reasons'], ensure_ascii=False), json.dumps(sc['red_flags'], ensure_ascii=False), json.dumps(sc['projects'], ensure_ascii=False), status, json.dumps(item, ensure_ascii=False))
-                )
+                conn.execute('''INSERT OR REPLACE INTO vacancies(
+                    id,name,employer,salary_from,salary_to,currency,area,schedule,
+                    employment,url,published_at,match_score,match_reasons,red_flags,
+                    recommended_projects,status,raw_json,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)''',(
+                    item['id'],item.get('name'),emp,sal.get('from'),sal.get('to'),
+                    sal.get('currency'),area,schedule,employment,item.get('alternate_url'),
+                    item.get('published_at'),sc['score'],
+                    json.dumps(sc['reasons'],ensure_ascii=False),
+                    json.dumps(sc['red_flags'],ensure_ascii=False),
+                    json.dumps(sc['projects'],ensure_ascii=False),
+                    status,json.dumps(item,ensure_ascii=False)
+                ))
                 saved += 1
-        c.commit()
-    return {'processed': processed, 'saved': saved, 'queries': queries}
+        conn.commit()
+    return {'processed': processed, 'saved': saved, 'queries': queries, 'source': 'authorized_browser'}
 
 @app.patch('/api/vacancies/{vacancy_id}/status')
 def change(vacancy_id: str, payload: StatusPayload):
