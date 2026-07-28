@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Silvana Career Agent every 3 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=3h
+RandomizedDelaySec=10min
+Persistent=true
+Unit=career-agent-worker.service
+
+[Install]
+WantedBy=timers.target
